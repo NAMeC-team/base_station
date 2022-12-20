@@ -8,7 +8,7 @@
 #include "pb_decode.h"
 #include "pb_encode.h"
 #include "radio_utils.h"
-#include "sensordata.pb.h"
+#include "ssl_data.pb.h"
 #include "swo.h"
 
 namespace {
@@ -24,7 +24,7 @@ static UnbufferedSerial serial_port(USBTX, USBRX);
 
 static IAToMainBoard ai_message = IAToMainBoard_init_zero;
 static uint8_t com_addr1_to_listen[5] = { 0x22, 0x87, 0xe8, 0xf9, 0x01 };
-static uint8_t radio_packet[IAToMainBoard_size+1];
+static uint8_t radio_packet[IAToMainBoard_size + 1];
 
 using namespace sixtron;
 SWO swo;
@@ -44,12 +44,12 @@ void send_protobuf_packet()
 {
     // printf("send_protobuf_packet\n");
     // radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, IAToMainBoard_size);
-    printf("0x");
-        for (int i = 0; i < IAToMainBoard_size; i++) {
-        printf("%02x", radio_packet[i]);
-    }
-    printf("\n");
-    radio.send_packet(radio_packet, IAToMainBoard_size+1);
+    // printf("0x");
+    //     for (int i = 0; i < IAToMainBoard_size; i++) {
+    //     printf("%02x", radio_packet[i]);
+    // }
+    // printf("\n");
+    radio.send_packet(radio_packet, IAToMainBoard_size + 1);
 }
 
 void fill_radio_packet(packet_type_t type, com_packet_t *packet_to_encode)
@@ -177,8 +177,9 @@ int main()
     serial_port.attach(&on_rx_interrupt, SerialBase::RxIrq);
 
     radio.initialize(NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, 2402);
-    radio.attach_transmitting_payload(NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, IAToMainBoard_size+1);
-    radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, IAToMainBoard_size+1);
+    radio.attach_transmitting_payload(
+            NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, IAToMainBoard_size + 1);
+    radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, IAToMainBoard_size + 1);
     radio.set_interrupt(NRF24L01::InterruptMode::NONE);
 
     memset(radio_packet, 0xFF, sizeof(radio_packet));
@@ -200,6 +201,6 @@ int main()
         // send_packet(packet, sizeof(packet));
         ThisThread::sleep_for(HALF_PERIOD);
 
-        print_radio_status();
+        // print_radio_status();
     }
 }

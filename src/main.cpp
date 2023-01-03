@@ -7,7 +7,6 @@
 #include "pb.h"
 #include "pb_decode.h"
 #include "pb_encode.h"
-#include "radio_utils.h"
 #include "ssl_data.pb.h"
 #include "swo.h"
 
@@ -52,58 +51,6 @@ void send_protobuf_packet()
     radio.send_packet(radio_packet, IAToMainBoard_size + 1);
 }
 
-void fill_radio_packet(packet_type_t type, com_packet_t *packet_to_encode)
-{
-    uint8_t length = 0;
-
-    switch (type) {
-        case PACKET_MASTER:
-            // type field
-            packet_to_encode->type = PACKET_MASTER;
-            length++;
-            // TODO: add payload
-            packet_to_encode->master.actions = ACTION_ON;
-            length++;
-            packet_to_encode->master.x_speed = 4555;
-            length = length + sizeof(packet_to_encode->master.x_speed);
-            packet_to_encode->master.y_speed = 3000;
-            length = length + sizeof(packet_to_encode->master.y_speed);
-            packet_to_encode->master.t_speed = 4000;
-            length = length + sizeof(packet_to_encode->master.t_speed);
-            packet_to_encode->master.kickPower = 0x02;
-            length++;
-            break;
-        case PACKET_PARAMS:
-            // type field
-            packet_to_encode->type = PACKET_PARAMS;
-            length++;
-            // TODO: add payload
-            packet_to_encode->params.kp = 1.34;
-            length = length + sizeof(packet_to_encode->params.kp);
-            packet_to_encode->params.ki = 5.34;
-            length = length + sizeof(packet_to_encode->params.ki);
-            packet_to_encode->params.kd = 10.34;
-            length = length + sizeof(packet_to_encode->params.kd);
-            break;
-        case PACKET_ROBOT:
-            // type field
-            packet_to_encode->type = PACKET_ROBOT;
-            length++;
-            // TODO: add payload
-            packet_to_encode->robot.id = 0xAA;
-            length++;
-            packet_to_encode->robot.status = 0x00;
-            length++;
-            packet_to_encode->robot.cap_volt = 0x05;
-            length++;
-            packet_to_encode->robot.voltage = 0x08;
-            length++;
-            break;
-    }
-
-    packet_to_encode->total_length = length + 1;
-}
-
 void on_rx_interrupt()
 {
     static bool start_of_frame = false;
@@ -114,12 +61,12 @@ void on_rx_interrupt()
 
     if (!start_of_frame) {
         serial_port.read(&c, 1);
-        if (c > 0 && c <= (IAToMainBoard_size)) {
+        if (c > 0 && c <= (IAToMainBoard_size)) { // Get packet length
             start_of_frame = true;
             length = c;
             read_count = 0;
             // event_queue.call(printf, "Receiving : %d\n", length);
-        } else if (c == 0) {
+        } else if (c == 0) { // When length is 0 it is the default protobuf packet
             start_of_frame = false;
             length = 0;
             read_count = 0;
@@ -193,14 +140,6 @@ int main()
         if (led1) {
             printf("Alive!\n");
         }
-        com_packet_t packet_to_send;
-        fill_radio_packet(PACKET_MASTER, &packet_to_send);
-        frame_encoder(&packet_to_send);
-        printf("Sending %d bytes\n", packet_to_send.total_length);
-        send_packet(packet_to_send.raw, packet_to_send.total_length);
-        // send_packet(packet, sizeof(packet));
         ThisThread::sleep_for(HALF_PERIOD);
-
-        // print_radio_status();
     }
 }

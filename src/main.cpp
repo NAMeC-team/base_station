@@ -5,7 +5,10 @@
 #include <pb_decode.h>
 #include <pb_encode.h>
 #include <radio_command.pb.h>
+#include <radio_feedback.pb.h>
 #include <swo.h>
+
+#include "rf_app.h"
 
 namespace {
 #define HALF_PERIOD 500ms
@@ -20,6 +23,8 @@ EventQueue event_queue;
 static DigitalOut led1(LED1);
 static SPI spi(SPI_MOSI_RF, SPI_MISO_RF, SPI_SCK_RF);
 static NRF24L01 radio(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1);
+static NRF24L01 radio_2(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
+
 static UnbufferedSerial serial_port(USBTX, USBRX);
 
 static PCToBase ai_message = PCToBase_init_zero;
@@ -40,7 +45,6 @@ void send_packet(uint8_t *packet, size_t length)
 
 void send_protobuf_packet(BaseCommand base_cmd)
 {
-
     RadioCommand radio_cmd;
     radio_cmd.robot_id = base_cmd.robot_id;
     radio_cmd.normal_velocity = base_cmd.normal_velocity;
@@ -62,12 +66,6 @@ void send_protobuf_packet(BaseCommand base_cmd)
     bool status = pb_encode(&tx_stream, RadioCommand_fields, &radio_cmd);
 
     size_t message_length = tx_stream.bytes_written;
-
-    // printf("Bytes_written: %d/%d\n", tx_stream.bytes_written, MainBoardToBrushless_size);
-    // for (int i = 0; i < tx_stream.bytes_written; i++) {
-    //     printf("%x ", _brushless_tx_buffer[4 + i]);
-    // }
-    // printf("\n");
 
     /* Then just check for any errors.. */
     if (!status) {
@@ -142,6 +140,35 @@ void print_radio_status()
     printf("Radio status: 0x%x\n", radio.status_register());
 }
 
+void on_rx_rf_interrupt(uint8_t *data, size_t data_size)
+{
+    static uint8_t length = 0;
+    RadioFeedback feedback = RadioFeedback_init_zero;
+
+    length = data[0];
+    event_queue.call(printf, "LENGTH: %d\n", length);
+
+    if (length == 0) {
+        // TODO:
+        // event_queue.call(apply_motor_speed);
+    } else {
+        /* Try to decode protobuf response */
+        /* Create a stream that reads from the buffer. */
+        pb_istream_t rx_stream = pb_istream_from_buffer(&data[1], length);
+
+        /* Now we are ready to decode the message. */
+        bool status = pb_decode(&rx_stream, RadioFeedback_fields, &feedback);
+
+        /* Check for errors... */
+        if (!status) {
+            event_queue.call(
+                    printf, "[RadioFeedback] Decoding failed: %s\n", PB_GET_ERROR(&rx_stream));
+        } else {
+            event_queue.call(printf, "IR: %d %d\n", feedback.ir, feedback.voltage);
+        }
+    }
+}
+
 int main()
 {
     // Remote
@@ -158,6 +185,15 @@ int main()
     // memset(radio_packet, 0xFF, sizeof(radio_packet));
 
     // print_radio_status();
+    // Radio
+    RF_app rf_app1(&radio_2,
+            RF_app::RFAppMode::RX,
+            RF_FREQUENCY_2,
+            com_addr1_to_listen,
+            RadioCommand_size + 1);
+    rf_app1.print_setup();
+    rf_app1.attach_rx_callback(&on_rx_rf_interrupt);
+    rf_app1.run();
 
     event_queue.dispatch_forever();
 

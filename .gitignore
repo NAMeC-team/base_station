@@ -10,4 +10,6 @@ ssl-mainboard/
 zest-core-stm32l4a6rg/
 swo/
 
+
+.vscode/
 # Do NOT ignore files below

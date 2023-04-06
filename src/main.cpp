@@ -15,8 +15,8 @@ namespace {
 // Radio frequency
 } // namespace
 
-#define RF_FREQUENCY_1 2402
-#define RF_FREQUENCY_2 2460
+#define RF_FREQUENCY_1 2470
+#define RF_FREQUENCY_2 2480
 
 EventQueue event_queue;
 
@@ -91,7 +91,7 @@ void on_rx_interrupt()
             start_of_frame = true;
             length = c;
             read_count = 0;
-            // event_queue.call(printf, "Receiving : %d\n", length);
+            event_queue.call(printf, "Receiving : %d\n", length);
         } else if (c == 0) { // When length is 0 it is the default protobuf packet
             start_of_frame = false;
             length = 0;
@@ -104,6 +104,7 @@ void on_rx_interrupt()
         if (read_count == length) {
             read_count = 0;
             start_of_frame = false;
+            event_queue.call(printf, "Receiving : %d\n", length);
 
             /* Try to decode protobuf response */
             ai_message = PCToBase_init_zero;

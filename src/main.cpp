@@ -28,8 +28,11 @@ static NRF24L01 radio_2(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
 static UnbufferedSerial serial_port(USBTX, USBRX);
 
 static PCToBase ai_message = PCToBase_init_zero;
+static PCToBase next_ai_message = PCToBase_init_zero;
+static bool processing_commands = false;
 static uint8_t com_addr1_to_listen[5] = { 0x22, 0x87, 0xe8, 0xf9, 0x01 };
-
+static Timeout response_timeout;
+static uint8_t current_command = 0;
 sixtron::SWO swo;
 
 FileHandle *mbed::mbed_override_console(int fd)
@@ -43,17 +46,17 @@ void send_packet(uint8_t *packet, size_t length)
     radio.send_packet(packet, length);
 }
 
-void send_protobuf_packet(BaseCommand base_cmd)
+void send_protobuf_packet(BaseCommand *base_cmd)
 {
     RadioCommand radio_cmd;
-    radio_cmd.robot_id = base_cmd.robot_id;
-    radio_cmd.normal_velocity = base_cmd.normal_velocity;
-    radio_cmd.tangential_velocity = base_cmd.tangential_velocity;
-    radio_cmd.angular_velocity = base_cmd.angular_velocity;
-    radio_cmd.kick = base_cmd.kick;
-    radio_cmd.kick_power = base_cmd.kick_power;
-    radio_cmd.charge = base_cmd.charge;
-    radio_cmd.dribbler = base_cmd.dribbler;
+    radio_cmd.robot_id = base_cmd->robot_id;
+    radio_cmd.normal_velocity = base_cmd->normal_velocity;
+    radio_cmd.tangential_velocity = base_cmd->tangential_velocity;
+    radio_cmd.angular_velocity = base_cmd->angular_velocity;
+    radio_cmd.kick = base_cmd->kick;
+    radio_cmd.kick_power = base_cmd->kick_power;
+    radio_cmd.charge = base_cmd->charge;
+    radio_cmd.dribbler = base_cmd->dribbler;
     radio_cmd.dev = false;
     event_queue.call(printf, "Robot ID %d\n", radio_cmd.robot_id);
     uint8_t tx_buffer[RadioCommand_size + 1];
@@ -76,6 +79,31 @@ void send_protobuf_packet(BaseCommand base_cmd)
 
     radio.send_packet(tx_buffer, RadioCommand_size + 1);
 }
+
+void process_commands();
+
+void process_command() {
+    event_queue.call(send_protobuf_packet, &ai_message.commands[current_command]);
+    current_command += 1;
+    if (current_command < ai_message.commands_count) {
+        response_timeout.attach([]() {
+            event_queue.call(process_command);
+        }, 2ms);
+    } else {
+        processing_commands = false;
+        event_queue.call(process_commands);
+    }
+}
+
+void process_commands() {
+    if (next_ai_message.commands_count > 0) {
+        ai_message = next_ai_message;
+        processing_commands = true;
+        current_command = 0;
+        event_queue.call(process_command);
+    }
+}
+
 
 void on_rx_interrupt()
 {
@@ -107,22 +135,19 @@ void on_rx_interrupt()
             event_queue.call(printf, "Receiving : %d\n", length);
 
             /* Try to decode protobuf response */
-            ai_message = PCToBase_init_zero;
+            next_ai_message = PCToBase_init_zero;
 
             /* Create a stream that reads from the buffer. */
             pb_istream_t rx_stream = pb_istream_from_buffer(read_buffer, length);
 
             /* Now we are ready to decode the message. */
-            bool status = pb_decode(&rx_stream, PCToBase_fields, &ai_message);
+            bool status = pb_decode(&rx_stream, PCToBase_fields, &next_ai_message);
 
             /* Check for errors... */
             if (!status) {
                 event_queue.call(printf, "Decoding failed: %s\n", PB_GET_ERROR(&rx_stream));
-            } else {
-                for (int i = 0; i < ai_message.commands_count; i++) {
-                    BaseCommand command = ai_message.commands[i];
-                    event_queue.call(send_protobuf_packet, command);
-                }
+            } else if (!processing_commands) {
+                event_queue.call(process_commands);
             }
         }
     }
@@ -168,6 +193,14 @@ void on_rx_rf_interrupt(uint8_t *data, size_t data_size)
             event_queue.call(printf, "IR: %d %d\n", feedback.ir, feedback.voltage);
         }
     }
+
+    if (current_command < ai_message.commands_count) {
+        response_timeout.detach();
+        event_queue.call(process_command);
+    } else {
+        processing_commands = false;
+        process_commands();
+    }
 }
 
 int main()
@@ -203,3 +236,4 @@ int main()
         ThisThread::sleep_for(HALF_PERIOD);
     }
 }
+

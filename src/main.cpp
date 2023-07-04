@@ -15,8 +15,8 @@ namespace {
 // Radio frequency
 } // namespace
 
-#define RF_FREQUENCY_1 2470
-#define RF_FREQUENCY_2 2480
+#define RF_FREQUENCY_1 2508
+#define RF_FREQUENCY_2 2510
 
 EventQueue event_queue;
 

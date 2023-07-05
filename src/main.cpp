@@ -24,10 +24,13 @@ static DigitalOut led1(LED1);
 static SPI spi(SPI_MOSI_RF, SPI_MISO_RF, SPI_SCK_RF);
 static NRF24L01 radio(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1);
 static NRF24L01 radio_2(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
-
+static BaseToPC base_response = BaseToPC_init_zero;
+static Timeout response_timeout;
 static UnbufferedSerial serial_port(USBTX, USBRX);
-
+static PCToBase next_ai_message = PCToBase_init_zero;
 static PCToBase ai_message = PCToBase_init_zero;
+static bool processing_commands;
+static uint8_t current_command;
 static uint8_t com_addr1_to_listen[5] = { 0x22, 0x87, 0xe8, 0xf9, 0x01 };
 
 sixtron::SWO swo;
@@ -77,6 +80,30 @@ void send_protobuf_packet(BaseCommand base_cmd)
     radio.send_packet(tx_buffer, RadioCommand_size + 1);
 }
 
+void start_processing_commands();
+
+void process_command() {
+    event_queue.call(send_protobuf_packet, ai_message.commands[current_command]);
+    if (current_command < ai_message.commands_count) {
+        current_command += 1;
+        response_timeout.attach([]() {
+            event_queue.call(process_command);
+        }, 2ms);
+    } else {
+        processing_commands = false;
+        //event_queue.call(start_processing_commands);
+    }
+}
+
+void start_processing_commands() {
+    ai_message = next_ai_message;
+    if (ai_message.commands_count <= 0) return;
+    base_response = BaseToPC_init_zero;
+    processing_commands = true;
+    current_command = 0;
+    process_command();
+}
+
 void on_rx_interrupt()
 {
     static bool start_of_frame = false;
@@ -107,21 +134,20 @@ void on_rx_interrupt()
             event_queue.call(printf, "Receiving : %d\n", length);
 
             /* Try to decode protobuf response */
-            ai_message = PCToBase_init_zero;
+            next_ai_message = PCToBase_init_zero;
 
             /* Create a stream that reads from the buffer. */
             pb_istream_t rx_stream = pb_istream_from_buffer(read_buffer, length);
 
             /* Now we are ready to decode the message. */
-            bool status = pb_decode(&rx_stream, PCToBase_fields, &ai_message);
+            bool status = pb_decode(&rx_stream, PCToBase_fields, &next_ai_message);
 
             /* Check for errors... */
             if (!status) {
                 event_queue.call(printf, "Decoding failed: %s\n", PB_GET_ERROR(&rx_stream));
             } else {
-                for (int i = 0; i < ai_message.commands_count; i++) {
-                    BaseCommand command = ai_message.commands[i];
-                    event_queue.call(send_protobuf_packet, command);
+                if (!processing_commands) {
+                    event_queue.call(start_processing_commands);
                 }
             }
         }
@@ -139,6 +165,19 @@ void print_radio_status()
     }
     printf("\r\n");
     printf("Radio status: 0x%x\n", radio.status_register());
+}
+
+void add_feedback(RadioFeedback radio_feedback) {
+    BaseFeedback feedback = BaseFeedback_init_zero;
+    feedback.ir = radio_feedback.ir;
+    feedback.motor_1_speed = radio_feedback.motor_1_speed;
+    feedback.motor_2_speed = radio_feedback.motor_2_speed;
+    feedback.motor_3_speed = radio_feedback.motor_3_speed;
+    feedback.motor_4_speed = radio_feedback.motor_4_speed;
+    feedback.robot_id = radio_feedback.robot_id;
+    feedback.voltage = radio_feedback.voltage;
+    base_response.feedbacks[base_response.feedbacks_count] = feedback;
+    base_response.feedbacks_count += 1;
 }
 
 void on_rx_rf_interrupt(uint8_t *data, size_t data_size)
@@ -166,6 +205,7 @@ void on_rx_rf_interrupt(uint8_t *data, size_t data_size)
                     printf, "[RadioFeedback] Decoding failed: %s\n", PB_GET_ERROR(&rx_stream));
         } else {
             event_queue.call(printf, "IR: %d %d\n", feedback.ir, feedback.voltage);
+            add_feedback(feedback);
         }
     }
 }

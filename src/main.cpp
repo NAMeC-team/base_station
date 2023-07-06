@@ -91,6 +91,21 @@ void process_command() {
         }, 2ms);
     } else {
         processing_commands = false;
+        uint8_t tx_buffer[BaseToPC_size + 1];
+        memset(tx_buffer, 0, sizeof(tx_buffer));
+        pb_ostream_t tx_stream = pb_ostream_from_buffer(tx_buffer + 1, BaseToPC_size);
+
+        bool status = pb_encode(&tx_stream, BaseToPC_fields, &base_response);
+
+        size_t message_length = tx_stream.bytes_written;
+
+        if (!status) {
+            printf("[Base] Encoding failed: %s\n", PB_GET_ERROR(&tx_stream));
+            return;
+        }
+        tx_buffer[0] = message_length;
+        serial_port.write(tx_buffer, BaseToPC_size + 1);
+
         //event_queue.call(start_processing_commands);
     }
 }

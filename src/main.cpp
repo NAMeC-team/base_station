@@ -5,7 +5,6 @@
 #include <pb_decode.h>
 #include <pb_encode.h>
 #include <radio_command.pb.h>
-#include <radio_feedback.pb.h>
 #include <swo.h>
 #include <rf_app.h>
 
@@ -23,8 +22,6 @@ EventQueue event_queue;
 static DigitalOut led1(LED1);
 static SPI spi(SPI_MOSI_RF, SPI_MISO_RF, SPI_SCK_RF);
 static NRF24L01 radio(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1);
-static NRF24L01 radio_2(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
-
 static UnbufferedSerial serial_port(USBTX, USBRX);
 
 static PCToBase ai_message = PCToBase_init_zero;
@@ -91,7 +88,7 @@ void on_rx_interrupt()
             start_of_frame = true;
             length = c;
             read_count = 0;
-            event_queue.call(printf, "Receiving : %d\n", length);
+            // event_queue.call(printf, "Receiving : %d\n", length);
         } else if (c == 0) { // When length is 0 it is the default protobuf packet
             start_of_frame = false;
             length = 0;
@@ -104,7 +101,6 @@ void on_rx_interrupt()
         if (read_count == length) {
             read_count = 0;
             start_of_frame = false;
-            event_queue.call(printf, "Receiving : %d\n", length);
 
             /* Try to decode protobuf response */
             ai_message = PCToBase_init_zero;
@@ -141,35 +137,6 @@ void print_radio_status()
     printf("Radio status: 0x%x\n", radio.status_register());
 }
 
-void on_rx_rf_interrupt(uint8_t *data, size_t data_size)
-{
-    static uint8_t length = 0;
-    RadioFeedback feedback = RadioFeedback_init_zero;
-
-    length = data[0];
-    event_queue.call(printf, "LENGTH: %d\n", length);
-
-    if (length == 0) {
-        // TODO:
-        // event_queue.call(apply_motor_speed);
-    } else {
-        /* Try to decode protobuf response */
-        /* Create a stream that reads from the buffer. */
-        pb_istream_t rx_stream = pb_istream_from_buffer(&data[1], length);
-
-        /* Now we are ready to decode the message. */
-        bool status = pb_decode(&rx_stream, RadioFeedback_fields, &feedback);
-
-        /* Check for errors... */
-        if (!status) {
-            event_queue.call(
-                    printf, "[RadioFeedback] Decoding failed: %s\n", PB_GET_ERROR(&rx_stream));
-        } else {
-            event_queue.call(printf, "IR: %d %d\n", feedback.ir, feedback.voltage);
-        }
-    }
-}
-
 int main()
 {
     // Remote
@@ -186,15 +153,6 @@ int main()
     // memset(radio_packet, 0xFF, sizeof(radio_packet));
 
     // print_radio_status();
-    // Radio
-    RF_app rf_app1(&radio_2,
-            RF_app::RFAppMode::RX,
-            RF_FREQUENCY_2,
-            com_addr1_to_listen,
-            RadioCommand_size + 1);
-    rf_app1.print_setup();
-    rf_app1.attach_rx_callback(&on_rx_rf_interrupt);
-    rf_app1.run();
 
     event_queue.dispatch_forever();
 

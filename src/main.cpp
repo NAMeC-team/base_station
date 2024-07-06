@@ -7,8 +7,8 @@
 #include <radio_command.pb.h>
 #include <radio_feedback.pb.h>
 #include <swo.h>
+#include <rf_app.h>
 
-#include "rf_app.h"
 
 namespace {
 #define HALF_PERIOD 500ms

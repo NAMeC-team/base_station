@@ -5,6 +5,7 @@
 #include <pb_decode.h>
 #include <pb_encode.h>
 #include <radio_command.pb.h>
+#include <radio_feedback.pb.h>
 #include <swo.h>
 #include <rf_app.h>
 
@@ -17,14 +18,44 @@ namespace {
 #define RF_FREQUENCY_1 2508
 #define RF_FREQUENCY_2 2510
 
+// -- Global variables
+
 EventQueue event_queue;
 
 static DigitalOut led1(LED1);
+
+// SPI bus handler
 static SPI spi(SPI_MOSI_RF, SPI_MISO_RF, SPI_SCK_RF);
-static NRF24L01 radio(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1);
+
+/**
+ * Transmission radio used to send orders to the robots
+ * on RF_FREQUENCY_1
+ * Uses the antenna on COM1 port
+ */
+static NRF24L01 tx_radio(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1);
+
+/**
+ * Reception radio used to listen to the robots sending
+ * their feedback, on RF_FREQUENCY_2
+ * Uses the antenna on COM2 port
+ */
+static NRF24L01 rx_radio(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
+
+/**
+ * Serial communication with the computer having the AI software
+ */
 static UnbufferedSerial serial_port(USBTX, USBRX);
 
+/**
+ * Global message edited when receiving a message from the serial link
+ */
 static PCToBase ai_message = PCToBase_init_zero;
+
+/**
+ * Address to send commands to, and to receive feedback on
+ * Both antennas send and listen on the same address, but on
+ * different frequencies
+ */
 static uint8_t com_addr1_to_listen[5] = { 0x22, 0x87, 0xe8, 0xf9, 0x01 };
 
 sixtron::SWO swo;
@@ -34,10 +65,15 @@ FileHandle *mbed::mbed_override_console(int fd)
     return &swo;
 }
 
+void save_robot_feedback() {
+    // TODO
+    led1 = !led1;
+}
+
 void send_packet(uint8_t *packet, size_t length)
 {
-    radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, length);
-    radio.send_packet(packet, length);
+    tx_radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, length);
+    tx_radio.send_packet(packet, length);
 }
 
 void send_protobuf_packet(BaseCommand base_cmd)
@@ -71,7 +107,7 @@ void send_protobuf_packet(BaseCommand base_cmd)
     }
     tx_buffer[0] = message_length;
 
-    radio.send_packet(tx_buffer, RadioCommand_size + 1);
+    tx_radio.send_packet(tx_buffer, RadioCommand_size + 1);
 }
 
 void on_rx_interrupt()
@@ -128,13 +164,13 @@ void print_radio_status()
 {
     uint8_t tx_addr_device[5] = { 0 };
 
-    radio.tx_address(tx_addr_device);
+    tx_radio.tx_address(tx_addr_device);
     printf("\r\nTx Address 0x");
     for (int i = 0; i < sizeof(tx_addr_device); i++) {
         printf("%.2X", tx_addr_device[i]);
     }
     printf("\r\n");
-    printf("Radio status: 0x%x\n", radio.status_register());
+    printf("Radio status: 0x%x\n", tx_radio.status_register());
 }
 
 int main()
@@ -143,12 +179,26 @@ int main()
     serial_port.baud(115200);
     serial_port.attach(&on_rx_interrupt, SerialBase::RxIrq);
 
-    radio.initialize(
+    // setup robot orders transmission radio
+    tx_radio.initialize(
             NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQUENCY_1);
-    radio.attach_transmitting_payload(
+    tx_radio.attach_transmitting_payload(
             NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
-    radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
-    radio.set_interrupt(NRF24L01::InterruptMode::NONE);
+    tx_radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
+    tx_radio.set_interrupt(NRF24L01::InterruptMode::NONE);
+
+    // setup robot feedback reception radio
+    rx_radio.initialize(
+            NRF24L01::OperationMode::RECEIVER,
+            NRF24L01::DataRate::_2MBPS,
+            RF_FREQUENCY_2);
+    rx_radio.attach_receive_payload(
+            NRF24L01::RxAddressPipe::RX_ADDR_P0,
+            com_addr1_to_listen,
+            RadioFeedback_size + 1);
+    rx_radio.set_interrupt(NRF24L01::InterruptMode::RX_ONLY);
+    rx_radio.attach(save_robot_feedback);
+    rx_radio.start_listening();
 
     // memset(radio_packet, 0xFF, sizeof(radio_packet));
 
@@ -157,7 +207,7 @@ int main()
     event_queue.dispatch_forever();
 
     while (true) {
-        led1 = !led1;
-        ThisThread::sleep_for(HALF_PERIOD);
+//        led1 = !led1;
+//        ThisThread::sleep_for(HALF_PERIOD);
     }
 }

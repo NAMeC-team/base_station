@@ -54,7 +54,7 @@ static Timeout feedbacks_timeout;
  * Must multiply by the number of robots to get total feedback count
  * last value is a tolerance margin
  */
-#define FDB_TIMEOUT_TIME (BASECMD_SEND_TIME + ANTENNA_SWAP_TIME + ROBOT_SEND_TIME + 50000us)
+#define FDB_TIMEOUT_TIME (BASECMD_SEND_TIME + ANTENNA_SWAP_TIME + ROBOT_SEND_TIME + 500000us)
 
 static DigitalOut led1(LED1);
 

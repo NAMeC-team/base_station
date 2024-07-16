@@ -42,6 +42,8 @@ void send_packet(uint8_t *packet, size_t length)
 
 void send_protobuf_packet(BaseCommand base_cmd)
 {
+    Timer t;
+    t.start();
     RadioCommand radio_cmd;
     radio_cmd.robot_id = base_cmd.robot_id;
     radio_cmd.normal_velocity = base_cmd.normal_velocity;
@@ -52,7 +54,7 @@ void send_protobuf_packet(BaseCommand base_cmd)
     radio_cmd.charge = base_cmd.charge;
     radio_cmd.dribbler = base_cmd.dribbler;
     radio_cmd.dev = false;
-    event_queue.call(printf, "Robot ID %d\n", radio_cmd.robot_id);
+    //    event_queue.call(printf, "Robot ID %d\n", radio_cmd.robot_id);
     uint8_t tx_buffer[RadioCommand_size + 1];
 
     memset(tx_buffer, 0, sizeof(tx_buffer));
@@ -71,6 +73,7 @@ void send_protobuf_packet(BaseCommand base_cmd)
     }
     tx_buffer[0] = message_length;
 
+    wait_us(400);
     radio.send_packet(tx_buffer, RadioCommand_size + 1);
 }
 

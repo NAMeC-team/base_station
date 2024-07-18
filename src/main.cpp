@@ -14,7 +14,7 @@ namespace {
 // Radio frequency
 } // namespace
 
-#define RF_FREQUENCY_1 2509
+#define RF_FREQUENCY_1 2523
 #define RF_FREQUENCY_2 2511
 
 EventQueue event_queue;
@@ -84,10 +84,10 @@ void send_protobuf_packet(BaseCommand base_cmd)
 
     radio.attach_transmitting_payload(
             NRF24L01::RxAddressPipe::RX_ADDR_P0,
-            com_addresses_robots[radio_cmd.robot_id],
+            com_addr1_to_listen,
             message_length + 1);
 
-    wait_us(400);
+    wait_us(1600);
 
 //    if (radio_cmd.robot_id == 1 && radio_cmd.normal_velocity > 0)
         led1 = true;
@@ -170,7 +170,7 @@ int main()
             NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
     radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
     radio.set_interrupt(NRF24L01::InterruptMode::NONE);
-
+    radio.set_crc(NRF24L01::CRCwidth::_16bits);
     // memset(radio_packet, 0xFF, sizeof(radio_packet));
 
     // print_radio_status();

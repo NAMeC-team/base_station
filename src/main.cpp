@@ -15,15 +15,6 @@ namespace {
 } // namespace
 
 
-#define ID_ROBOT_ALPHA 1
-#define RF_FREQ_ROB_ALPHA 2509
-
-#define ID_ROBOT_BETA 4
-#define RF_FREQ_ROB_BETA 2511
-
-#define ID_ROBOT_OMEGA 2
-#define RF_FREQ_ROB_OMEGA 2523
-
 #define RF_FREQUENCY_1 2509
 #define RF_FREQUENCY_2 2511
 
@@ -32,8 +23,6 @@ EventQueue event_queue;
 static DigitalOut led1(LED1);
 static SPI spi(SPI_MOSI_RF, SPI_MISO_RF, SPI_SCK_RF);
 static NRF24L01 tx_radio_alpha(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1);
-static NRF24L01 tx_radio_beta(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
-static NRF24L01 tx_radio_omega(&spi, SPI_CS_RF3, CE_RF3, IRQ_RF3);
 static UnbufferedSerial serial_port(USBTX, USBRX);
 
 static PCToBase ai_message = PCToBase_init_zero;
@@ -79,23 +68,11 @@ void send_protobuf_packet(BaseCommand base_cmd)
     }
     tx_buffer[0] = message_length;
 
+    tx_radio_alpha.attach_transmitting_payload(
+            NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, message_length + 1);
     wait_us(400);
-    switch (radio_cmd.robot_id) {
-        case ID_ROBOT_ALPHA:
-            tx_radio_alpha.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
-            tx_radio_alpha.send_packet(tx_buffer, message_length + 1);
-            break;
-        case ID_ROBOT_BETA:
-            tx_radio_beta.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
-            tx_radio_beta.send_packet(tx_buffer, message_length + 1);
-            break;
-        case ID_ROBOT_OMEGA:
-            tx_radio_omega.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
-            tx_radio_omega.send_packet(tx_buffer, message_length + 1);
-            break;
-        default:
-            break;
-    }
+    tx_radio_alpha.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
+    tx_radio_alpha.send_packet(tx_buffer, message_length + 1);
 }
 
 void on_rx_interrupt()
@@ -155,25 +132,11 @@ int main()
     serial_port.attach(&on_rx_interrupt, SerialBase::RxIrq);
 
     tx_radio_alpha.initialize(
-            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQ_ROB_ALPHA);
+            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQUENCY_1);
     tx_radio_alpha.attach_transmitting_payload(
             NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
     tx_radio_alpha.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
     tx_radio_alpha.set_interrupt(NRF24L01::InterruptMode::NONE);
-
-    tx_radio_beta.initialize(
-            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQ_ROB_BETA);
-    tx_radio_beta.attach_transmitting_payload(
-            NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
-    tx_radio_beta.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
-    tx_radio_beta.set_interrupt(NRF24L01::InterruptMode::NONE);
-
-    tx_radio_omega.initialize(
-            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQ_ROB_OMEGA);
-    tx_radio_omega.attach_transmitting_payload(
-            NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
-    tx_radio_omega.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
-    tx_radio_omega.set_interrupt(NRF24L01::InterruptMode::NONE);
 
     // print_radio_status();
 

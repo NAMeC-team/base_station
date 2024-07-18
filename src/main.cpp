@@ -73,8 +73,17 @@ void send_protobuf_packet(BaseCommand base_cmd)
     }
     tx_buffer[0] = message_length;
 
+    radio.attach_transmitting_payload(
+            NRF24L01::RxAddressPipe::RX_ADDR_P0,
+            com_addresses_robots[radio_cmd.robot_id],
+            message_length + 1);
+
     wait_us(400);
-    radio.send_packet(tx_buffer, RadioCommand_size + 1);
+
+//    if (radio_cmd.robot_id == 1 && radio_cmd.normal_velocity > 0)
+        led1 = true;
+    radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
+    radio.send_packet(tx_buffer, message_length + 1);
 }
 
 void on_rx_interrupt()

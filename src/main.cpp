@@ -39,6 +39,22 @@ static NRF24L01 tx_radio_beta(&spi, SPI_CS_RF2, CE_RF2, IRQ_RF2);
 static NRF24L01 tx_radio_omega(&spi, SPI_CS_RF3, CE_RF3, IRQ_RF3);
 static UnbufferedSerial serial_port(USBTX, USBRX);
 
+/**
+ + * Address to send commands to, and to receive feedback on for each robot
+ + * Both antennas send and listen on the same address, but on
+ + * different frequencies
+ + * Robot 0 will use the same address to receive commands & send feedbacks
+ + */
+static uint8_t com_addresses_robots[7][5] = {
+    { 0x22, 0x87, 0xe8, 0xf9, 0x00 },
+    { 0x22, 0x87, 0xe8, 0xf9, 0x01 },
+    { 0x22, 0x87, 0xe8, 0xf9, 0x02 },
+    { 0x22, 0x87, 0xe8, 0xf9, 0x03 },
+    { 0x22, 0x87, 0xe8, 0xf9, 0x04 },
+    { 0x22, 0x87, 0xe8, 0xf9, 0x05 },
+    { 0x22, 0x87, 0xe8, 0xf9, 0x06 }
+};
+
 static PCToBase ai_message = PCToBase_init_zero;
 static uint8_t com_addr1_to_listen[5] = { 0x22, 0x87, 0xe8, 0xf9, 0x01 };
 
@@ -86,17 +102,17 @@ void send_protobuf_packet(BaseCommand base_cmd)
     switch (radio_cmd.robot_id) {
         case ID_ROBOT_ALPHA:
         case ID_ROBOT_ALPHA_PLUS:
-            tx_radio_alpha.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
+            tx_radio_alpha.attach_transmitting_payload(NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addresses_robots[radio_cmd.robot_id], message_length + 1);
             tx_radio_alpha.send_packet(tx_buffer, message_length + 1);
             break;
         case ID_ROBOT_BETA:
         case ID_ROBOT_BETA_PLUS:
-            tx_radio_beta.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
+            tx_radio_beta.attach_transmitting_payload(NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addresses_robots[radio_cmd.robot_id], message_length + 1);
             tx_radio_beta.send_packet(tx_buffer, message_length + 1);
             break;
         case ID_ROBOT_OMEGA:
         case ID_ROBOT_OMEGA_PLUS:
-            tx_radio_omega.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
+            tx_radio_omega.attach_transmitting_payload(NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addresses_robots[radio_cmd.robot_id], message_length + 1);
             tx_radio_omega.send_packet(tx_buffer, message_length + 1);
             break;
         default:

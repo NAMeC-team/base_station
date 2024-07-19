@@ -16,12 +16,15 @@ namespace {
 
 
 #define ID_ROBOT_ALPHA 1
+#define ID_ROBOT_ALPHA_PLUS 2
 #define RF_FREQ_ROB_ALPHA 2509
 
-#define ID_ROBOT_BETA 4
+#define ID_ROBOT_BETA 3
+#define ID_ROBOT_BETA_PLUS 4
 #define RF_FREQ_ROB_BETA 2511
 
-#define ID_ROBOT_OMEGA 2
+#define ID_ROBOT_OMEGA 5
+#define ID_ROBOT_OMEGA_PLUS 6
 #define RF_FREQ_ROB_OMEGA 2523
 
 #define RF_FREQUENCY_1 2509
@@ -82,14 +85,17 @@ void send_protobuf_packet(BaseCommand base_cmd)
     wait_us(400);
     switch (radio_cmd.robot_id) {
         case ID_ROBOT_ALPHA:
+        case ID_ROBOT_ALPHA_PLUS:
             tx_radio_alpha.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
             tx_radio_alpha.send_packet(tx_buffer, message_length + 1);
             break;
         case ID_ROBOT_BETA:
+        case ID_ROBOT_BETA_PLUS:
             tx_radio_beta.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
             tx_radio_beta.send_packet(tx_buffer, message_length + 1);
             break;
         case ID_ROBOT_OMEGA:
+        case ID_ROBOT_OMEGA_PLUS:
             tx_radio_omega.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, message_length + 1);
             tx_radio_omega.send_packet(tx_buffer, message_length + 1);
             break;

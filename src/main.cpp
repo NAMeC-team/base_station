@@ -11,6 +11,7 @@
 
 namespace {
 #define HALF_PERIOD 500ms
+#define SERIAL_BAUDRATE 115200
 } // namespace
 
 // Radio frequencies used
@@ -26,7 +27,7 @@ EventQueue event_queue;
 static DigitalOut led1(LED1); // Debug led
 static SPI spi(SPI_MOSI_RF, SPI_MISO_RF, SPI_SCK_RF); // SPI handler
 static NRF24L01 radio(&spi, SPI_CS_RF1, CE_RF1, IRQ_RF1); // RF module
-static UnbufferedSerial serial_port(USBTX, USBRX); // Bidirectionnal serial comm with main computer
+static UnbufferedSerial serial_port(USBTX, USBRX); // Bidirectional serial comm with main computer
 
 // (global) Current AI message received,
 // updated whenever a new one is parsed
@@ -65,9 +66,10 @@ void send_protobuf_packet(BaseCommand base_cmd)
 
     // remember that we send the packet like this
     // 0     8       16       32 (bits)
-    // [size,         ...packet]
+    // buffer = [size,         ...packet]
     // so the robot can read first byte, to see how many bytes
-    // it has to read
+    // it has to read.
+    // ...packet is the encoded form of a Protobuf struct message
     uint8_t tx_buffer[RadioCommand_size + 1];
 
     memset(tx_buffer, 0, sizeof(tx_buffer));
@@ -164,7 +166,7 @@ void print_radio_status()
 int main()
 {
     // Serial link with remote main software computer
-    serial_port.baud(115200);
+    serial_port.baud(SERIAL_BAUDRATE);
     serial_port.attach(&on_rx_interrupt, SerialBase::RxIrq);
 
     // Initialize TX radio to transmit packets to robots
@@ -175,7 +177,7 @@ int main()
     radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
     radio.set_interrupt(NRF24L01::InterruptMode::NONE);
 
-    // Main thread execuets pending events
+    // Main thread executes pending events
     // -> Gets interrupted by Serial
     // -> Processes incoming packet
     // -> Queues the sending of each command for all robots

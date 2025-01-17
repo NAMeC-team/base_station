@@ -175,6 +175,10 @@ int main()
     radio.attach_transmitting_payload(
             NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
     radio.set_interrupt(NRF24L01::InterruptMode::NONE);
+    radio.set_auto_acknowledgement(true);
+    radio.set_crc(NRF24L01::CRCwidth::_8bits);
+    radio.enable_dynamic_payload(true);
+    radio.enable_payload_ack_mode(true);
 
     // Main thread executes pending events
     // -> Gets interrupted by Serial

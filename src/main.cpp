@@ -15,8 +15,8 @@ namespace {
 } // namespace
 
 // Radio frequencies used
-#define RF_FREQUENCY_1 2509 // Base station -> Robots
-#define RF_FREQUENCY_2 2511 // Unused
+#define RF_FREQUENCY_MATCH 2514 // Base station -> Robots
+#define RF_FREQUENCY_TEST 2488 // Unused
 
 /**
  * Event queue used to call execution of functions
@@ -171,7 +171,7 @@ int main()
 
     // Initialize TX radio to transmit packets to robots
     radio.initialize(
-            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQUENCY_1);
+            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQUENCY_MATCH);
     radio.attach_transmitting_payload(
             NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
     radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);

@@ -5,9 +5,8 @@
 #include <pb_decode.h>
 #include <pb_encode.h>
 #include <radio_command.pb.h>
-#include <swo.h>
 #include <rf_app.h>
-
+#include <swo.h>
 
 namespace {
 #define HALF_PERIOD 500ms
@@ -88,8 +87,15 @@ void send_protobuf_packet(BaseCommand base_cmd)
     }
     tx_buffer[0] = message_length;
 
-    wait_us(400); // required to avoid on-air packet collision
-    radio.send_packet(tx_buffer, RadioCommand_size + 1);
+    // Définition d'une adresse locale pour la transmission
+    uint8_t target_address[5];
+    memcpy(target_address, com_addr1_to_listen, 5);
+    target_address[4] = base_cmd.robot_id;
+    radio.attach_transmitting_payload(
+            NRF24L01::RxAddressPipe::RX_ADDR_P0, target_address, RadioCommand_size + 1);
+
+    wait_us(2000); // required to avoid on-air packet collision
+    radio.send_packet(wtx_buffer, RadioCommand_size + 1);
 }
 
 /**
@@ -171,7 +177,7 @@ int main()
 
     // Initialize TX radio to transmit packets to robots
     radio.initialize(
-            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQUENCY_MATCH);
+            NRF24L01::OperationMode::TRANSCEIVER, NRF24L01::DataRate::_2MBPS, RF_FREQUENCY_TEST);
     radio.attach_transmitting_payload(
             NRF24L01::RxAddressPipe::RX_ADDR_P0, com_addr1_to_listen, RadioCommand_size + 1);
     radio.set_payload_size(NRF24L01::RxAddressPipe::RX_ADDR_P0, RadioCommand_size + 1);
